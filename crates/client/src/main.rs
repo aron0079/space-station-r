@@ -43,6 +43,7 @@ mod settings;
 mod structures;
 mod tiles;
 mod tooltip;
+mod health_analyzer;
 mod ui_theme;
 mod weapons;
 mod windows;
@@ -135,6 +136,16 @@ fn main() {
     app.add_plugins(ProtocolPlugin);
     app.init_resource::<Handshake>();
     app.init_resource::<PlayerEntity>();
+    app.init_resource::<health_analyzer::HealthScan>();
+    // Анализатор здоровья и лужи крови.
+    app.add_systems(
+        Update,
+        (
+            health_analyzer::render_health_analyzer,
+            health_analyzer::analyzer_close,
+            health_analyzer::render_puddles,
+        ),
+    );
     app.init_resource::<tiles::ChunkRenderState>();
     app.init_resource::<lobby::LobbyState>();
     app.init_resource::<inventory_ui::OwnPlayerEntity>();
@@ -818,6 +829,7 @@ fn receive_server(
     mut sounds: ResMut<audio::SoundRequests>,
     mut console: ResMut<console::Console>,
     mut chat: ResMut<chat::ChatState>,
+    mut scan: ResMut<health_analyzer::HealthScan>,
 ) {
     for mut receiver in receivers.iter_mut() {
         for message in receiver.receive() {
@@ -882,6 +894,14 @@ fn receive_server(
                     menu.options = options;
                     menu.category = None;
                     menu.entities.clear();
+                }
+                ServerMessage::HealthScan {
+                    target,
+                    active,
+                    opened,
+                } => {
+                    tracing::info!(target, active, opened, "health scan received");
+                    scan.receive(target, active, opened);
                 }
                 ServerMessage::EntityDelta { .. } => {} // дельты позиций — T1.3/T1.4
             }
